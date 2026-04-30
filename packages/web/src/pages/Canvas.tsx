@@ -16,6 +16,22 @@ import { api, type GraphRecord } from "../api/client.ts";
 import type { GraphNode, GraphEdge, GraphCluster, RawTurn } from "@threadgraph/shared";
 import GraphNodeComponent, { type GraphNodeData } from "../components/GraphNode.tsx";
 import NodeDetail from "../components/NodeDetail.tsx";
+import BuiltDecidedLens from "../components/lenses/BuiltDecidedLens.tsx";
+import ReentryBriefLens from "../components/lenses/ReentryBriefLens.tsx";
+import ShareLens from "../components/lenses/ShareLens.tsx";
+import RisksOpenLens from "../components/lenses/RisksOpenLens.tsx";
+import TimelineLens from "../components/lenses/TimelineLens.tsx";
+
+type ViewMode = "canvas" | "built-decided" | "reentry-brief" | "share" | "risks-open" | "timeline";
+
+const VIEW_OPTIONS: { value: ViewMode; label: string }[] = [
+  { value: "canvas", label: "Graph canvas" },
+  { value: "built-decided", label: "What was built / decided" },
+  { value: "reentry-brief", label: "Re-entry brief" },
+  { value: "share", label: "Share with someone" },
+  { value: "risks-open", label: "Risks and open questions" },
+  { value: "timeline", label: "Timeline" },
+];
 
 const NODE_TYPES: NodeTypes = { graphNode: GraphNodeComponent };
 
@@ -97,6 +113,7 @@ export default function Canvas() {
   const [selectedNode, setSelectedNode] = useState<GraphNode | null>(null);
   const [isEditingTitle, setIsEditingTitle] = useState(false);
   const [title, setTitle] = useState("");
+  const [viewMode, setViewMode] = useState<ViewMode>("canvas");
 
   const [flowNodes, setFlowNodes, onNodesChange] = useNodesState<GraphNodeData>([]);
   const [flowEdges, setFlowEdges, onEdgesChange] = useEdgesState<Edge>([]);
@@ -176,6 +193,18 @@ export default function Canvas() {
         </div>
 
         <div className="flex items-center gap-2">
+          <select
+            value={viewMode}
+            onChange={(e) => {
+              setViewMode(e.target.value as ViewMode);
+              if (e.target.value !== "canvas") setSelectedNode(null);
+            }}
+            className="rounded bg-gray-800 px-2 py-1 text-xs text-gray-300 ring-1 ring-white/10 hover:bg-gray-700 focus:outline-none focus:ring-brand-500"
+          >
+            {VIEW_OPTIONS.map((opt) => (
+              <option key={opt.value} value={opt.value}>{opt.label}</option>
+            ))}
+          </select>
           <span className="hidden text-xs text-gray-500 sm:inline">
             {record?.graph_json.nodes.length ?? 0} nodes · {record?.graph_json.edges.length ?? 0} edges
           </span>
@@ -188,58 +217,70 @@ export default function Canvas() {
         </div>
       </div>
 
-      {/* Canvas + sidebar */}
+      {/* Main content area */}
       <div className="relative flex flex-1 overflow-hidden">
-        {/* Cluster legend */}
-        {record && record.graph_json.clusters.length > 0 && (
-          <div className="absolute left-3 top-3 z-10 max-w-48 rounded-xl bg-gray-900/90 p-3 ring-1 ring-white/10 backdrop-blur">
-            <p className="mb-2 text-[10px] font-semibold uppercase tracking-wider text-gray-500">Clusters</p>
-            {record.graph_json.clusters.map((c: GraphCluster) => (
-              <div key={c.id} className="mb-1">
-                <p className="text-xs font-medium text-gray-200">{c.label}</p>
-                <p className="text-[10px] text-gray-500">{c.node_ids.length} nodes</p>
+        {viewMode === "canvas" ? (
+          <>
+            {/* Cluster legend */}
+            {record && record.graph_json.clusters.length > 0 && (
+              <div className="absolute left-3 top-3 z-10 max-w-48 rounded-xl bg-gray-900/90 p-3 ring-1 ring-white/10 backdrop-blur">
+                <p className="mb-2 text-[10px] font-semibold uppercase tracking-wider text-gray-500">Clusters</p>
+                {record.graph_json.clusters.map((c: GraphCluster) => (
+                  <div key={c.id} className="mb-1">
+                    <p className="text-xs font-medium text-gray-200">{c.label}</p>
+                    <p className="text-[10px] text-gray-500">{c.node_ids.length} nodes</p>
+                  </div>
+                ))}
               </div>
-            ))}
-          </div>
-        )}
+            )}
 
-        {/* React Flow canvas */}
-        <ReactFlow
-          nodes={flowNodes}
-          edges={flowEdges}
-          onNodesChange={onNodesChange}
-          onEdgesChange={onEdgesChange}
-          onNodeClick={onNodeClick}
-          nodeTypes={NODE_TYPES}
-          fitView
-          className="flex-1"
-          style={{ background: "#030712" }}
-        >
-          <Background color="#1f2937" gap={20} />
-          <Controls className="[&>button]:bg-gray-800 [&>button]:border-gray-700 [&>button]:text-gray-300" />
-          <MiniMap
-            nodeColor={(n) => {
-              const type = (n.data as { node?: GraphNode })?.node?.type;
-              const colors: Record<string, string> = {
-                insight: "#7c3aed", decision: "#16a34a", question: "#d97706",
-                problem: "#dc2626", action: "#2563eb", reference: "#0891b2", draft: "#ea580c",
-              };
-              return colors[type ?? ""] ?? "#6b7280";
-            }}
-            className="!bg-gray-900 !border-gray-700"
-          />
-        </ReactFlow>
+            {/* React Flow canvas */}
+            <ReactFlow
+              nodes={flowNodes}
+              edges={flowEdges}
+              onNodesChange={onNodesChange}
+              onEdgesChange={onEdgesChange}
+              onNodeClick={onNodeClick}
+              nodeTypes={NODE_TYPES}
+              fitView
+              className="flex-1"
+              style={{ background: "#030712" }}
+            >
+              <Background color="#1f2937" gap={20} />
+              <Controls className="[&>button]:bg-gray-800 [&>button]:border-gray-700 [&>button]:text-gray-300" />
+              <MiniMap
+                nodeColor={(n) => {
+                  const type = (n.data as { node?: GraphNode })?.node?.type;
+                  const colors: Record<string, string> = {
+                    insight: "#7c3aed", decision: "#16a34a", question: "#d97706",
+                    problem: "#dc2626", action: "#2563eb", reference: "#0891b2", draft: "#ea580c",
+                  };
+                  return colors[type ?? ""] ?? "#6b7280";
+                }}
+                className="!bg-gray-900 !border-gray-700"
+              />
+            </ReactFlow>
 
-        {/* Node detail panel */}
-        {selectedNode && (
-          <div className="w-72 shrink-0 border-l border-white/10 bg-gray-900 overflow-hidden">
-            <NodeDetail
-              node={selectedNode}
-              rawTurns={rawTurns}
-              onClose={() => setSelectedNode(null)}
-            />
-          </div>
-        )}
+            {/* Node detail panel */}
+            {selectedNode && (
+              <div className="w-72 shrink-0 border-l border-white/10 bg-gray-900 overflow-hidden">
+                <NodeDetail
+                  node={selectedNode}
+                  rawTurns={rawTurns}
+                  onClose={() => setSelectedNode(null)}
+                />
+              </div>
+            )}
+          </>
+        ) : record ? (
+          <>
+            {viewMode === "built-decided" && <BuiltDecidedLens graph={record.graph_json} />}
+            {viewMode === "reentry-brief" && <ReentryBriefLens graph={record.graph_json} />}
+            {viewMode === "share" && <ShareLens graph={record.graph_json} />}
+            {viewMode === "risks-open" && <RisksOpenLens graph={record.graph_json} />}
+            {viewMode === "timeline" && <TimelineLens graph={record.graph_json} />}
+          </>
+        ) : null}
       </div>
     </div>
   );
