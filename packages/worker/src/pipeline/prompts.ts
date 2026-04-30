@@ -67,7 +67,7 @@ SPANS:
 ${JSON.stringify(spans, null, 2)}`;
 }
 
-export const PASS3_SYSTEM = `You are a knowledge graph architect. Given classified nodes from a conversation, build the graph structure: edges and clusters.
+export const PASS3_SYSTEM = `You are a knowledge graph architect. Given classified nodes from a conversation, build the graph structure: edges, clusters, and segments.
 
 Return ONLY valid JSON. No prose, no markdown fences. Follow the schema exactly.
 
@@ -77,18 +77,41 @@ Edge relations:
 - contradicts: node A and B are in tension (use canonical direction: from.id < to.id alphabetically)
 - resolves: node A resolves or answers node B (a question, problem, or open action)
 
+Edge risk flag:
+- Each edge has an optional boolean field: risk (default false)
+- Set risk: true when a contradicts or unresolved_tension edge connects to a decision node
+- This surfaces tensions around committed choices for the audit lens
+
 Cluster rules:
 - Group thematically related nodes into named clusters
 - Each cluster needs: id (c_<number>), label (max 60 chars), summary (max 600 chars), node_ids
 - A node may appear in at most one cluster
-- Orphan nodes (not in any cluster) are allowed`;
+- Orphan nodes (not in any cluster) are allowed
 
-export function pass3User(nodes: object[]): string {
-  return `Build the graph structure for these ${nodes.length} nodes.
+Segment rules:
+- Segments classify the conversational mode across the full turn range
+- Every turn from 0 to (turnCount - 1) must be covered with no gaps
+- Adjacent turns sharing the same mode must be merged into one segment — do not split unnecessarily
+- Each segment needs: id (seg_<number>), type, turn_start, turn_end (both inclusive), label
+- label: plain language description of what was happening (max 60 chars), e.g. "Understanding Parakeet architecture" or "Weighing chunking tradeoffs" — not just the type name
+- Segment types: exploring, learning, deciding, building, drafting, debugging, critiquing, synthesising
+  - exploring: open-ended discovery, following tangents, no clear destination
+  - learning: user receiving explanation or absorbing information asymmetrically
+  - deciding: weighing options, converging toward a choice
+  - building: constructing something concrete — architecture, code, a plan
+  - drafting: iterating on linguistic content — documents, emails, narratives
+  - debugging: diagnosing something broken, narrowing toward a fix
+  - critiquing: stress-testing a position, reviewing work, pressure-testing assumptions
+  - synthesising: thinking out loud, reflecting, using the model as a sounding board`;
 
-Create edges between causally or semantically related nodes, and group them into thematic clusters.
+export function pass3User(nodes: object[], turnCount: number): string {
+  return `Build the graph structure for these ${nodes.length} nodes from a conversation with ${turnCount} turns (turn indices 0 to ${turnCount - 1}).
 
-Return JSON: { "edges": [ ...EdgeSchema ], "clusters": [ ...ClusterSchema ] }
+Create edges between causally or semantically related nodes, group them into thematic clusters, and classify the conversational mode across all turns into segments.
+
+Return JSON: { "edges": [ ...EdgeSchema ], "clusters": [ ...ClusterSchema ], "segments": [ ...SegmentSchema ] }
+
+Segment coverage requirement: every turn from 0 to ${turnCount - 1} must appear in exactly one segment. No gaps. Adjacent turns of the same type must be merged.
 
 NODES:
 ${JSON.stringify(nodes, null, 2)}`;

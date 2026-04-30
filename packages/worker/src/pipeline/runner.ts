@@ -120,6 +120,13 @@ function sanitizeClusters(raw: unknown[]): unknown[] {
   }));
 }
 
+function sanitizeSegments(raw: unknown[]): unknown[] {
+  return raw.map((s: any) => ({
+    ...s,
+    label: typeof s.label === "string" ? s.label.slice(0, 60) : s.label,
+  }));
+}
+
 async function runPass1(
   client: Anthropic,
   turns: RawTurn[]
@@ -195,10 +202,11 @@ function nodesForPass3(nodes: GraphNode[]): object[] {
 
 async function runPass3(
   client: Anthropic,
-  nodes: GraphNode[]
-): Promise<{ edges: unknown[]; clusters: unknown[]; inputTokens: number; outputTokens: number }> {
+  nodes: GraphNode[],
+  turnCount: number
+): Promise<{ edges: unknown[]; clusters: unknown[]; segments: unknown[]; inputTokens: number; outputTokens: number }> {
   const strippedNodes = nodesForPass3(nodes);
-  const userPrompt = pass3User(strippedNodes);
+  const userPrompt = pass3User(strippedNodes, turnCount);
 
   for (let attempt = 0; attempt < 2; attempt++) {
     try {
@@ -213,8 +221,9 @@ async function runPass3(
       logger.debug({ edgeSample: json.edges?.slice(0, 2) }, "Pass 3 raw edge sample");
       if (Array.isArray(json.edges)) json.edges = sanitizeEdges(json.edges);
       if (Array.isArray(json.clusters)) json.clusters = sanitizeClusters(json.clusters);
+      if (Array.isArray(json.segments)) json.segments = sanitizeSegments(json.segments);
       const result = Pass3OutputSchema.parse(json);
-      const check = validatePass3(nodes, result.edges, result.clusters);
+      const check = validatePass3(nodes, result.edges, result.clusters, result.segments, turnCount);
 
       if (!check.ok) throw new Error(`Pass 3 validation: ${check.errors.join("; ")}`);
 
@@ -239,7 +248,7 @@ async function runPass3(
 export async function runPipeline(
   apiKey: string,
   rawTurns: RawTurn[]
-): Promise<{ nodes: GraphNode[]; edges: unknown[]; clusters: unknown[]; usage: PipelineUsage }> {
+): Promise<{ nodes: GraphNode[]; edges: unknown[]; clusters: unknown[]; segments: unknown[]; usage: PipelineUsage }> {
   const client = new Anthropic({ apiKey });
 
   let allSpans: Span[];
@@ -285,8 +294,8 @@ export async function runPipeline(
   const pass2 = await runPass2(client, allSpans);
   logger.info({ nodeCount: pass2.nodes.length }, "Pass 2 complete");
 
-  const pass3 = await runPass3(client, pass2.nodes);
-  logger.info({ edgeCount: (pass3.edges as unknown[]).length, clusterCount: (pass3.clusters as unknown[]).length }, "Pass 3 complete");
+  const pass3 = await runPass3(client, pass2.nodes, rawTurns.length);
+  logger.info({ edgeCount: (pass3.edges as unknown[]).length, clusterCount: (pass3.clusters as unknown[]).length, segmentCount: (pass3.segments as unknown[]).length }, "Pass 3 complete");
 
   const passes: PassUsage[] = [
     { pass: "pass1", inputTokens: pass1InputTokens, outputTokens: pass1OutputTokens, costUsd: computeCost(pass1InputTokens, pass1OutputTokens) },
@@ -305,7 +314,7 @@ export async function runPipeline(
 
   logger.info({ usage }, "Pipeline usage summary");
 
-  return { nodes: pass2.nodes, edges: pass3.edges, clusters: pass3.clusters, usage };
+  return { nodes: pass2.nodes, edges: pass3.edges, clusters: pass3.clusters, segments: pass3.segments, usage };
 }
 
 function sleep(ms: number) {

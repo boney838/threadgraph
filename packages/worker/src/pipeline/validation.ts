@@ -1,4 +1,4 @@
-import type { Span, GraphNode, GraphEdge, GraphCluster } from "@threadgraph/shared";
+import type { Span, GraphNode, GraphEdge, GraphCluster, GraphSegment } from "@threadgraph/shared";
 
 export interface ValidationResult {
   ok: boolean;
@@ -53,7 +53,9 @@ export function validatePass2(spans: Span[], nodes: GraphNode[]): ValidationResu
 export function validatePass3(
   nodes: GraphNode[],
   edges: GraphEdge[],
-  clusters: GraphCluster[]
+  clusters: GraphCluster[],
+  segments: GraphSegment[],
+  turnCount: number
 ): ValidationResult {
   const errors: string[] = [];
   const nodeIds = new Set(nodes.map((n) => n.id));
@@ -76,6 +78,26 @@ export function validatePass3(
       }
       clusterMembership.set(nodeId, cluster.id);
     }
+  }
+
+  const covered = new Array<boolean>(turnCount).fill(false);
+  for (const seg of segments) {
+    if (seg.turn_end < seg.turn_start) {
+      errors.push(`Segment ${seg.id}: turn_end (${seg.turn_end}) < turn_start (${seg.turn_start})`);
+      continue;
+    }
+    for (let t = seg.turn_start; t <= seg.turn_end; t++) {
+      if (t >= turnCount) {
+        errors.push(`Segment ${seg.id}: turn ${t} out of range (turnCount=${turnCount})`);
+      } else if (covered[t]) {
+        errors.push(`Segment coverage: turn ${t} covered by multiple segments`);
+      } else {
+        covered[t] = true;
+      }
+    }
+  }
+  for (let t = 0; t < turnCount; t++) {
+    if (!covered[t]) errors.push(`Segment coverage: turn ${t} not covered by any segment`);
   }
 
   return { ok: errors.length === 0, errors };

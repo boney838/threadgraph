@@ -51,6 +51,7 @@ export const EdgeSchema = z
     to: z.string().regex(/^n_s_\d+$/),
     relation: EdgeRelationSchema,
     label: z.string().max(80).optional(),
+    risk: z.boolean().optional().default(false),
   })
   .refine(
     (e) => e.relation !== "contradicts" || e.from < e.to,
@@ -64,6 +65,26 @@ export const ClusterSchema = z.object({
   label: z.string().min(1).max(60),
   summary: z.string().min(1).max(600),
   node_ids: z.array(z.string().regex(/^n_s_\d+$/)).min(1),
+});
+
+// ── Segment (Pass 3 output) ───────────────────────────────────────────────────
+export const SegmentTypeSchema = z.enum([
+  "exploring",
+  "learning",
+  "deciding",
+  "building",
+  "drafting",
+  "debugging",
+  "critiquing",
+  "synthesising",
+]);
+
+export const SegmentSchema = z.object({
+  id: z.string().regex(/^seg_\d+$/),
+  type: SegmentTypeSchema,
+  turn_start: z.number().int().nonnegative(),
+  turn_end: z.number().int().nonnegative(),
+  label: z.string().min(1).max(60),
 });
 
 // ── Raw turn (original transcript) ───────────────────────────────────────────
@@ -80,6 +101,7 @@ export const Pass2OutputSchema = z.object({ nodes: z.array(NodeSchema) });
 export const Pass3OutputSchema = z.object({
   edges: z.array(EdgeSchema),
   clusters: z.array(ClusterSchema),
+  segments: z.array(SegmentSchema),
 });
 
 // ── Top-level graph (assembled by worker, persisted to graphs.graph_json) ─────
@@ -87,6 +109,7 @@ export const GraphSchema = z.object({
   nodes: z.array(NodeSchema),
   edges: z.array(EdgeSchema),
   clusters: z.array(ClusterSchema),
+  segments: z.array(SegmentSchema).optional().default([]),
   raw_turns: z.array(RawTurnSchema),
 });
 
@@ -95,8 +118,10 @@ export type Graph = z.infer<typeof GraphSchema>;
 export type GraphNode = z.infer<typeof NodeSchema>;
 export type GraphEdge = z.infer<typeof EdgeSchema>;
 export type GraphCluster = z.infer<typeof ClusterSchema>;
+export type GraphSegment = z.infer<typeof SegmentSchema>;
 export type Span = z.infer<typeof SpanSchema>;
 export type RawTurn = z.infer<typeof RawTurnSchema>;
 export type NodeType = z.infer<typeof NodeTypeSchema>;
 export type NodeStatus = z.infer<typeof NodeStatusSchema>;
 export type EdgeRelation = z.infer<typeof EdgeRelationSchema>;
+export type SegmentType = z.infer<typeof SegmentTypeSchema>;

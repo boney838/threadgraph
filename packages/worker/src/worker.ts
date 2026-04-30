@@ -61,10 +61,10 @@ const worker = new Worker(
       logger.info({ jobId, turnCount: rawTurns.length }, "Transcript parsed");
 
       // 5. Run 3-pass pipeline
-      const { nodes, edges, clusters, usage } = await runPipeline(apiKey, rawTurns);
+      const { nodes, edges, clusters, segments, usage } = await runPipeline(apiKey, rawTurns);
 
       // 6. Assemble graph payload
-      const graphJson = { nodes, edges, clusters, raw_turns: rawTurns };
+      const graphJson = { nodes, edges, clusters, segments, raw_turns: rawTurns };
 
       // 7. Persist to graph record
       const title =
