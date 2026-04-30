@@ -76,6 +76,7 @@ Edge relations:
 - elaborates: node B expands on or provides detail about node A
 - contradicts: node A and B are in tension (use canonical direction: from.id < to.id alphabetically)
 - resolves: node A resolves or answers node B (a question, problem, or open action)
+- revisits: node B (later turn) returns to the same core concept as node A (earlier turn) after a meaningful gap — use when the same idea, question, or problem resurfaces in a different part of the conversation; direction is always later → earlier (from: later node, to: earlier node); do NOT use for nodes in adjacent or nearby turns where elaborates is more appropriate
 
 Edge risk flag:
 - Each edge has an optional boolean field: risk (default false)

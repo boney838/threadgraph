@@ -1,4 +1,4 @@
-import type { Graph, GraphNode, GraphSegment } from "@threadgraph/shared";
+import type { Graph, GraphNode, GraphSegment, GraphEdge } from "@threadgraph/shared";
 
 const SEGMENT_COLORS: Record<
   string,
@@ -24,12 +24,16 @@ const TYPE_ICONS: Record<string, string> = {
   decision: "✅",
 };
 
+type RevisitsTarget = { label: string; type: string };
+
 function SegmentBand({
   segment,
   anchoredNodes,
+  revisitsMap,
 }: {
   segment: GraphSegment;
   anchoredNodes: GraphNode[];
+  revisitsMap: Map<string, RevisitsTarget[]>;
 }) {
   const colors = SEGMENT_COLORS[segment.type] ?? FALLBACK_COLORS;
 
@@ -51,18 +55,32 @@ function SegmentBand({
       {/* Anchored key nodes */}
       {anchoredNodes.length > 0 && (
         <div className="space-y-1.5">
-          {anchoredNodes.map((n) => (
-            <div
-              key={n.id}
-              className="flex items-start gap-2 rounded-lg bg-gray-900/60 px-3 py-2 ring-1 ring-white/10"
-            >
-              <span className="shrink-0 text-sm">{TYPE_ICONS[n.type] ?? ""}</span>
-              <div className="min-w-0">
-                <p className="text-xs font-medium text-gray-200">{n.label}</p>
-                <p className="text-[10px] leading-relaxed text-gray-500">{n.summary}</p>
+          {anchoredNodes.map((n) => {
+            const revisited = revisitsMap.get(n.id) ?? [];
+            return (
+              <div
+                key={n.id}
+                className="rounded-lg bg-gray-900/60 px-3 py-2 ring-1 ring-white/10"
+              >
+                <div className="flex items-start gap-2">
+                  <span className="shrink-0 text-sm">{TYPE_ICONS[n.type] ?? ""}</span>
+                  <div className="min-w-0">
+                    <p className="text-xs font-medium text-gray-200">{n.label}</p>
+                    <p className="text-[10px] leading-relaxed text-gray-500">{n.summary}</p>
+                  </div>
+                </div>
+                {revisited.map((r, i) => (
+                  <div key={i} className="mt-1.5 flex items-center gap-1.5 pl-6">
+                    <span className="text-[10px] text-gray-600">↩</span>
+                    <span className="text-[10px] text-gray-500">
+                      revisits earlier {r.type}:
+                    </span>
+                    <span className="text-[10px] text-gray-400 italic truncate">{r.label}</span>
+                  </div>
+                ))}
               </div>
-            </div>
-          ))}
+            );
+          })}
         </div>
       )}
     </div>
@@ -108,6 +126,17 @@ export default function TimelineLens({ graph }: { graph: Graph }) {
     nodesBySegment.get(idx)!.push(node);
   }
 
+  // Build map from later-node-id → earlier nodes it revisits
+  const nodeById = new Map(graph.nodes.map((n) => [n.id, n]));
+  const revisitsMap = new Map<string, RevisitsTarget[]>();
+  for (const edge of graph.edges as GraphEdge[]) {
+    if (edge.relation !== "revisits") continue;
+    const earlier = nodeById.get(edge.to);
+    if (!earlier) continue;
+    if (!revisitsMap.has(edge.from)) revisitsMap.set(edge.from, []);
+    revisitsMap.get(edge.from)!.push({ label: earlier.label, type: earlier.type });
+  }
+
   return (
     <div className="flex-1 overflow-y-auto p-6">
       <div className="mx-auto max-w-2xl">
@@ -122,6 +151,7 @@ export default function TimelineLens({ graph }: { graph: Graph }) {
               key={seg.id}
               segment={seg}
               anchoredNodes={nodesBySegment.get(i) ?? []}
+              revisitsMap={revisitsMap}
             />
           ))}
         </div>

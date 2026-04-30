@@ -40,6 +40,7 @@ const RELATION_COLORS: Record<string, string> = {
   elaborates: "#34d399",
   contradicts: "#f87171",
   resolves: "#fbbf24",
+  revisits: "#64748b",
 };
 
 function buildLayout(
@@ -92,17 +93,25 @@ function toFlowNodes(nodes: GraphNode[], positions: Record<string, { x: number; 
 }
 
 function toFlowEdges(edges: GraphEdge[]): Edge[] {
-  return edges.map((e, i) => ({
-    id: `e_${i}_${e.from}_${e.to}`,
-    source: e.from,
-    target: e.to,
-    label: e.label ?? e.relation,
-    animated: e.relation === "spawned",
-    style: { stroke: RELATION_COLORS[e.relation] ?? "#6b7280" },
-    markerEnd: { type: MarkerType.ArrowClosed, color: RELATION_COLORS[e.relation] ?? "#6b7280" },
-    labelStyle: { fill: "#9ca3af", fontSize: 10 },
-    labelBgStyle: { fill: "#111827", fillOpacity: 0.8 },
-  }));
+  return edges.map((e, i) => {
+    const color = RELATION_COLORS[e.relation] ?? "#6b7280";
+    const isRevisit = e.relation === "revisits";
+    return {
+      id: `e_${i}_${e.from}_${e.to}`,
+      source: e.from,
+      target: e.to,
+      label: e.label ?? e.relation,
+      animated: e.relation === "spawned",
+      style: {
+        stroke: color,
+        strokeDasharray: isRevisit ? "6 3" : undefined,
+        strokeWidth: isRevisit ? 1.5 : undefined,
+      },
+      markerEnd: { type: MarkerType.ArrowClosed, color },
+      labelStyle: { fill: "#9ca3af", fontSize: 10 },
+      labelBgStyle: { fill: "#111827", fillOpacity: 0.8 },
+    };
+  });
 }
 
 export default function Canvas() {

@@ -43,6 +43,7 @@ export const EdgeRelationSchema = z.enum([
   "elaborates",
   "contradicts",
   "resolves",
+  "revisits",
 ]);
 
 export const EdgeSchema = z
